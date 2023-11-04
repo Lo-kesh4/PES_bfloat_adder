@@ -294,3 +294,143 @@ The variables that can be changed for particular step of interactive flow can be
 1. **Initiate the interactive flow** - ```./flow.tcl -interactive```
 2. **prepare the design for the flow** - ```prep -design openlane/<DESIGN_FOLDER_NAME> -tag <RUN_NAME>```
 
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/0e620091-5953-4324-9234-d958ca54edcf)
+
+3. **Run Synthesis** - ```run_synthesis```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/8a459144-ee2d-46b8-ae16-c74801956f03)
+
+- The area statistics results can be found at ```results/synthesis```
+- The static timing analysis (slack) results can be seen at the bottom of ```logs/synthesis/2-sta.summary.rpt```
+
+### NOTE
+
+1. ##### If the slack is highly negative -0.1, -0.05, 0 etc proceed to next steps from run_floorplan
+2. ##### If the slack is just positive, then continue with next steps from run_floorplan
+3. ##### If the slack is higly positive, Greater than 2 then you have a scope to decrease the clock period and run again so that freqency increases.
+4. ##### If the slack is -0.4 , 0.5 or lower, then increase the clock period
+5. ##### If the slack is -0.4 to 0 then instead of directly increasing the clock period, try some OpenSTA optimisations so that we get positive slack at same frequency.
+
+Here We have 2 ways to go
+1. OpenSTA
+2. Proceed with further flow from run_floorplan
+
+### OpenSTA
+
+We here do pre-STA analsysis where we 
+- replace the cells that have more fanout to a cell with cell fanout
+- replace the cell contributing to more delay with a cell that decreases it by a larger verion of it with same functionality
+- check the slack for every action taken
+- stop the process once the slack is either point 1 or 2 under the NOTE
+- replace the synthesized verilog file with the sta operated verilog file
+- proceed with main floe from run_floorplan
+
+The process requires 
+- OpenSTA - ```sudo apt install opensta```
+- a config file for sta
+- a base.sdc file that defines the constraints
+
+#### Config file for STA
+
+- create a file pre_sta.conf in ```OpenLane/openlane``` with the content
+
+```
+set_cmd_units -time ns -capacitance pF -current mA -voltage V -resistance kOhm -distance um
+read_liberty -max /home/mdsabir/.volare/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_100C_1v60.lib
+read_liberty -min /home/mdsabir/.volare/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+read_liberty -nom /home/mdsabir/.volare/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+read_verilog /home/mdsabir/OpenLane/openlane/bfloat_adder/runs/run1_inter/results/synthesis/bfloat_adder.v
+link_design bfloat_adder
+read_sdc /home/mdsabir/OpenLane/openlane/bfloat_adder/src/my_base.sdc
+report_checks -path_delay min_max -fields {slew trans net cap input_pin}
+report_tns
+report_wns
+```
+
+- max library is the library corresponding to the path present at ```LIB_SLOWEST``` in the config.tcl file present in the runs/<SPECIFIC_RUN_FOLDER>
+- min library is the library corresponding to the path present at ```LIB_FASTEST```
+- nom library is the library corresponding to the path present at ```LIB_SYNTH_COMPLETE```
+- my_base.sdc to be created in ```src``` folder with the content present at ```OpenLane/scripts/base.sdc``` and set the environment variables mentioned in ```base.sdc```
+
+#### OpenSTA Flow
+
+Go to the directory where pre_sta.conf is present and run ```sta pre_sta.conf```
+
+The  Hold slack has met the requirement
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/b066b305-2e26-4c08-8f39-2442cb9ef0fe)
+
+The setup slack didnt meet the requirement
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/706d653d-ab88-4a1c-9775-f37bae318d20)
+
+##### STEP 1 : Decrease the Fanout - I did it to 4 
+
+To the config.json file, add the line ``` "MAX_FANOUT_CONSTRAINT": 4,``` after the clock period variable and again start interactive flow from start, prepare design and overwrite the run, run_synthesis and then run the sta part
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/b129e011-a090-4036-aeb4-0566e02cdd5d)
+
+Setup slack after this step
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/4e5cc20a-afed-4fe7-a1c0-6e9b7f6a4e8a)
+
+##### STEP 2 : Replace cells that infer larger delay
+
+In the above figure we can observe that cell instance **475** is causing the most delay. So we have to replace it with larger version of itself
+
+```report_net -connections _035_``` - instances being driven by net _035_ as in fig
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/efaf4746-19cc-4d27-8f9a-b1444cc8eeb4)
+
+The instance that's causing highest delay is the cell **475**. So replace it as mentioned and check the result
+
+```
+replace_cell _475_ sky130_fd_sc_hd__or2b_4
+report_checks -path_delay min_max -fields {slew trans net cap input_pin}
+```
+
+repeat this till the slack reaches almost positive value or a minimum positive value
+
+![Screenshot from 2023-11-03 18-08-41](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/4312651c-e85f-4da4-b6ff-b148b09d4ac6)
+
+4. **Run Floorplan** - ```run_floorplan```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/ba3bcd58-8d37-4ed2-a64b-a3153c8954ad)
+
+To view Floorplan in magic
+```
+cd /home/mdsabir/OpenLane/openlane/PES_ADD_SUB_32/runs/run1_inter/results/floorplan
+magic -T /home/mdsabir/.volare/sky130A/libs.tech/magic/sky130A.tech lef read ../../tmp/merged.nom.lef def read bfloat_adder.def &
+```
+
+change the paths accordingly for the runs and hostname
+
+![Screenshot from 2023-11-03 18-14-26](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/e4e529a8-e817-4372-8982-c003effcee03)
+
+5. **Run Placement** - ```run_placement```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/7d8c70c6-b8c0-49d1-b40a-79925b2cf112)
+
+A snipshot of placement 
+
+![Screenshot from 2023-11-03 18-15-43](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/562f2cde-5ca2-4dbb-93a5-2fdff4ceec59)
+
+![Screenshot from 2023-11-03 18-17-42](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/6274992d-6122-4cc1-9e4d-b359f90da9dd)
+
+
+Execute the same magic command as in floorplan stage but this time in ```results/placement``` folder
+
+6. **Run CTS** - ```run_cts```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/b42a90f9-4f17-465d-a65a-7e487df18c42)
+
+7. **Generate Power Distribution Network** - ```gen_pdn```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/d2e91a64-f7d8-4bc6-8bd2-841274c1975a)
+
+8. **Run Routing** - ```run_routing```
+
+![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/76ec00fa-ba25-45df-8830-1add6953a5a4)
+
+![Screenshot from 2023-11-03 18-20-46](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/0396fbc6-4e1d-4031-899d-504d09cfcb06)
+
