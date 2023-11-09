@@ -424,6 +424,11 @@ Execute the same magic command as in floorplan stage but this time in ```results
 
 ![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/b42a90f9-4f17-465d-a65a-7e487df18c42)
 
+POWER AREA AND TIMING REPORT
+
+![repo2](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/a1020f69-728a-4ae7-8402-157b62f7fb4d)
+
+
 7. **Generate Power Distribution Network** - ```gen_pdn```
 
 ![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/d2e91a64-f7d8-4bc6-8bd2-841274c1975a)
@@ -433,4 +438,6 @@ Execute the same magic command as in floorplan stage but this time in ```results
 ![image](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/76ec00fa-ba25-45df-8830-1add6953a5a4)
 
 ![Screenshot from 2023-11-03 18-20-46](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/0396fbc6-4e1d-4031-899d-504d09cfcb06)
+
+![report](https://github.com/Lo-kesh4/PES_bfloat_adder/assets/131575546/10bc8605-7e14-43b6-8983-5d2f8782c90c)
 
